@@ -1,4 +1,4 @@
-package com.evan.rental
+package com.evan.rental;
 
 
 class ToolFactory {
