@@ -2,54 +2,70 @@ package com.evan.rental;
 
 import java.math.BigDecimal;
 
+import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 class Rental {
 
 	private final Tool tool;
-	private final LocalDate rentalStartDate;
-	private final LocalDate rentalEndDate;
+	private final RentalDateRange rentalDateRange;
+	private final BigDecimal discount;
 
 
-	Rental(Tool tool, LocalDate rentalStartDate, LocalDate rentalEndDate) {
+	Rental(Tool tool, LocalDate rentalStartDate, LocalDate rentalEndDate, BigDecimal discount) throws Exception{
 		this.tool = tool;
-		this.rentalStartDate = rentalStartDate;
-		this.rentalEndDate = rentalEndDate;
+		this.rentalDateRange = new RentalDateRange(rentalStartDate, rentalEndDate, tool.getWeekendCharge(), tool.getHolidayCharge());
+		this.discount = validateDiscount(discount);
 	}
 
 	public Tool getTool() {
 		return this.tool;
 	}
 
-	public LocalDate getRentalStartDate() {
-		return this.rentalStartDate;
+	public RentalDateRange getRentalDateRange() {
+		return this.rentalDateRange;
 	}
 
-	public LocalDate getRentalEndDate() {
-		return this.rentalEndDate;
+	public BigDecimal validateDiscount(BigDecimal discount) throws Exception {
+		if (discount.compareTo(BigDecimal.valueOf(100)) > 0) {
+			throw new Exception("Discount was entered as greater than 100 which is not allowed. Enter an amount between 0 and 100");
+		} else if (discount.compareTo(BigDecimal.valueOf(0)) < 0) {
+			throw new Exception("Discount was entered as less than 0 which is not allowed. Enter an amount between 0 and 100");
+		}
+		return discount;
 	}
 
 	public BigDecimal calculateAmountDue() {
-		return this.tool.getRentalRate().
-				multiply(BigDecimal.valueOf(calculateDaysBetweenRentalDates()));
+
+		return calculateAmountDueBeforeDiscount()
+				.subtract(calculateDiscountAmount())
+				.setScale(2, RoundingMode.HALF_EVEN);
 	}
 
-	public int calculateDaysBetweenRentalDates() {
-		return this.rentalEndDate.compareTo(this.rentalStartDate)+1 - numberOfWeekendsAndHolidayExceptions();
+	public BigDecimal calculateAmountDueBeforeDiscount() {
+		return tool.getRentalRate().
+				multiply(BigDecimal.valueOf(rentalDateRange.numberOfChargeableDays()));
 	}
 
-	public int numberOfWeekendsAndHolidayExceptions() {
-		return (int) Stream.iterate(rentalStartDate, date -> date.plusDays(1))
-				.limit(rentalEndDate.compareTo(rentalStartDate)+1)
-				.filter(d -> d.getDayOfWeek().getValue()>5 && this.tool.getWeekendCharge())
-				.filter(this::isDateAHoliday)
-				.count();
+	public BigDecimal calculateDiscountAmount() {
+		return calculateAmountDueBeforeDiscount()
+				.multiply(discount)
+				.multiply(BigDecimal.valueOf(.01));
 	}
 
-	public boolean isDateAHoliday(LocalDate date) {
-		return true;
+	public BigDecimal calculateAmountDueAndDisplay() {
+		System.out.println("Tool code: " + tool.getToolCode());
+		System.out.println("Tool type: " + tool.getToolType());
+		System.out.println("Tool brand: " + tool.getBrand());
+		System.out.println("Check out date: " + rentalDateRange.getFormattedRentalStartDate());
+		System.out.println("Due date: " + rentalDateRange.getFormattedRentalEndDate());
+		System.out.println("Daily rental charge: $" + tool.getRentalRate());
+		System.out.println("Charge days: " + rentalDateRange.numberOfChargeableDays());
+		System.out.println("Pre-discount charge: $" + calculateAmountDueBeforeDiscount().setScale(2, RoundingMode.HALF_EVEN));
+		System.out.println("Discount amount: $" + calculateDiscountAmount().setScale(2, RoundingMode.HALF_EVEN));
+		System.out.println("Final charge: $" + calculateAmountDue());
+		return calculateAmountDue();
 	}
+
+
 }
